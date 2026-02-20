@@ -3,35 +3,77 @@ import { Link } from 'react-router-dom'
 import type { PortfolioEntry } from '../types'
 import { fetchPortfolioHistory, fetchDates, fetchPortfolio } from '../api/client'
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts'
+import { ArrowLeft, Trophy, Target, TrendingDown, TrendingUp, BarChart3 } from 'lucide-react'
 
 function getActionBadge(action: string) {
-  const colors: Record<string, string> = {
-    enter: 'bg-emerald-900/50 text-emerald-400 border-emerald-700',
-    hold: 'bg-blue-900/50 text-blue-400 border-blue-700',
-    exit: 'bg-red-900/50 text-red-400 border-red-700',
+  const styles: Record<string, { bg: string; text: string; border: string }> = {
+    enter: { bg: 'bg-emerald-600/20', text: 'text-emerald-400', border: 'border-emerald-600/30' },
+    hold: { bg: 'bg-blue-600/20', text: 'text-blue-400', border: 'border-blue-600/30' },
+    exit: { bg: 'bg-red-600/20', text: 'text-red-400', border: 'border-red-600/30' },
   }
+  const s = styles[action] || { bg: 'bg-slate-700', text: 'text-slate-400', border: 'border-slate-600' }
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded border text-xs font-medium ${colors[action] || 'bg-slate-700 text-slate-400 border-slate-600'}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded border text-[10px] font-bold ${s.bg} ${s.text} ${s.border}`}>
       {action.toUpperCase()}
     </span>
   )
 }
 
 function getReturnColor(pct: number | null): string {
-  if (pct === null) return 'text-slate-400'
+  if (pct === null) return 'text-slate-500'
   if (pct > 0) return 'text-emerald-400'
   if (pct < 0) return 'text-red-400'
   return 'text-slate-400'
+}
+
+const tooltipStyle = {
+  backgroundColor: '#1E293B',
+  border: '1px solid #334155',
+  borderRadius: '12px',
+  color: '#F1F5F9',
+  fontSize: '12px',
+  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+}
+
+function PortfolioSkeleton() {
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex items-center gap-3">
+        <div className="h-8 w-48 bg-slate-700/50 rounded animate-pulse" />
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[...Array(7)].map((_, i) => (
+          <div key={i} className="bg-surface-default border border-border-default rounded-xl p-4 animate-pulse">
+            <div className="h-3 w-16 bg-slate-700/50 rounded mb-2" />
+            <div className="h-6 w-12 bg-slate-700/50 rounded" />
+          </div>
+        ))}
+      </div>
+      <div className="h-72 bg-surface-default border border-border-default rounded-xl animate-pulse" />
+      <div className="h-96 bg-surface-default border border-border-default rounded-xl animate-pulse" />
+    </div>
+  )
+}
+
+function StatCard({ label, value, color, icon }: { label: string; value: string | number; color: string; icon: React.ReactNode }) {
+  return (
+    <div className="bg-surface-default border border-border-default rounded-xl p-4 hover:border-emerald-500/20 transition-all">
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <span className={`${color} opacity-70`}>{icon}</span>
+        <span className="text-xs text-slate-400 uppercase tracking-wider">{label}</span>
+      </div>
+      <div className={`text-xl font-bold font-mono tabular-nums ${color}`}>{value}</div>
+    </div>
+  )
 }
 
 function Portfolio() {
@@ -59,7 +101,7 @@ function Portfolio() {
         setIsLoading(false)
       })
       .catch(err => {
-        setError(`Failed to load portfolio: ${err.message}`)
+        setError(`포트폴리오 로딩 실패: ${err.message}`)
         setIsLoading(false)
       })
   }, [])
@@ -72,7 +114,6 @@ function Portfolio() {
 
     let cumReturn = 0
     return exits.map(e => {
-      // Each position is 20% weight, so contribution = return * weight
       const contribution = (e.return_pct ?? 0) * (e.weight || 0.2)
       cumReturn += contribution
       return {
@@ -114,22 +155,13 @@ function Portfolio() {
     return sorted.filter(e => e.action === filterAction)
   }, [history, filterAction])
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold text-slate-100">Portfolio Tracker</h1>
-        <div className="text-center text-slate-400 py-12 animate-pulse">
-          Loading portfolio data...
-        </div>
-      </div>
-    )
-  }
+  if (isLoading) return <PortfolioSkeleton />
 
   if (error) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold text-slate-100">Portfolio Tracker</h1>
-        <div className="bg-red-900/30 border border-red-700 rounded-xl p-4 text-red-300 text-sm">
+        <h1 className="text-2xl font-bold text-slate-100">포트폴리오 트래커</h1>
+        <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-4 text-red-300 text-sm">
           {error}
         </div>
       </div>
@@ -137,38 +169,51 @@ function Portfolio() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-100">Portfolio Tracker</h1>
-        <p className="text-sm text-slate-400 mt-1">
-          Forward Test - 5 positions, 20% equal weight
-        </p>
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-4">
+          <Link to="/" className="flex items-center gap-1 text-slate-400 hover:text-slate-200 transition-colors text-sm">
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-100">포트폴리오 트래커</h1>
+            <p className="text-sm text-slate-500 mt-0.5">
+              Forward Test - 5종목, 20% 균등 배분
+            </p>
+          </div>
+        </div>
+        {latestDate && (
+          <span className="text-xs text-slate-500 font-mono tabular-nums bg-surface-default border border-border-default px-3 py-1.5 rounded-lg">
+            최신: {latestDate}
+          </span>
+        )}
       </div>
 
       {/* Current Holdings */}
-      <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
-        <div className="p-4 border-b border-slate-700">
-          <h2 className="text-lg font-semibold text-slate-200">
-            Current Holdings
-            {latestDate && <span className="text-sm text-slate-400 ml-2">({latestDate})</span>}
-          </h2>
+      <div className="bg-surface-default border border-border-default rounded-xl overflow-hidden">
+        <div className="p-4 border-b border-border-default">
+          <div className="flex items-center gap-3">
+            <div className="w-1 h-5 bg-emerald-500 rounded-full" />
+            <h2 className="text-sm font-semibold text-slate-100">현재 보유 종목</h2>
+            {latestDate && <span className="text-xs text-slate-500">{latestDate}</span>}
+          </div>
         </div>
         {currentPortfolio.filter(e => e.action !== 'exit').length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase tracking-wider">
-                  <th className="px-4 py-3 text-left">Ticker</th>
-                  <th className="px-4 py-3 text-left">Action</th>
-                  <th className="px-4 py-3 text-right">Weight</th>
-                  <th className="px-4 py-3 text-right">Entry Date</th>
-                  <th className="px-4 py-3 text-right">Entry Price</th>
-                  <th className="px-4 py-3 text-right">Current</th>
-                  <th className="px-4 py-3 text-right">Unrealized</th>
+                <tr className="border-b border-border-default text-slate-500 text-xs uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left">종목</th>
+                  <th className="px-4 py-3 text-left">액션</th>
+                  <th className="px-4 py-3 text-right">비중</th>
+                  <th className="px-4 py-3 text-right">진입일</th>
+                  <th className="px-4 py-3 text-right">진입가</th>
+                  <th className="px-4 py-3 text-right">현재가</th>
+                  <th className="px-4 py-3 text-right">미실현 수익</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-700/50">
+              <tbody className="divide-y divide-border-subtle">
                 {currentPortfolio
                   .filter(e => e.action !== 'exit')
                   .map(entry => {
@@ -176,7 +221,7 @@ function Portfolio() {
                       ? ((entry.price - entry.entry_price) / entry.entry_price) * 100
                       : null
                     return (
-                      <tr key={entry.ticker} className="hover:bg-slate-700/50 transition-colors">
+                      <tr key={entry.ticker} className="hover:bg-surface-hover transition-colors">
                         <td className="px-4 py-3">
                           <Link
                             to={`/ticker/${entry.ticker}`}
@@ -186,19 +231,19 @@ function Portfolio() {
                           </Link>
                         </td>
                         <td className="px-4 py-3">{getActionBadge(entry.action)}</td>
-                        <td className="px-4 py-3 text-right font-mono text-slate-300">
+                        <td className="px-4 py-3 text-right font-mono text-slate-300 tabular-nums">
                           {(entry.weight * 100).toFixed(0)}%
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-slate-400 text-xs">
+                        <td className="px-4 py-3 text-right font-mono text-slate-500 text-xs tabular-nums">
                           {entry.entry_date}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-slate-300">
+                        <td className="px-4 py-3 text-right font-mono text-slate-400 tabular-nums">
                           ${entry.entry_price.toFixed(2)}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-slate-200">
+                        <td className="px-4 py-3 text-right font-mono text-slate-200 tabular-nums">
                           ${entry.price.toFixed(2)}
                         </td>
-                        <td className={`px-4 py-3 text-right font-mono font-semibold ${getReturnColor(unrealized)}`}>
+                        <td className={`px-4 py-3 text-right font-mono font-semibold tabular-nums ${getReturnColor(unrealized)}`}>
                           {unrealized !== null
                             ? `${unrealized > 0 ? '+' : ''}${unrealized.toFixed(1)}%`
                             : '-'}
@@ -210,108 +255,125 @@ function Portfolio() {
             </table>
           </div>
         ) : (
-          <div className="p-6 text-center text-slate-400">No active positions.</div>
+          <div className="p-6 text-center text-slate-500 text-sm">보유 종목이 없습니다.</div>
         )}
       </div>
 
       {/* Trade Statistics */}
       {tradeStats && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
-            <div className="text-xs text-slate-400 uppercase tracking-wider">Trades</div>
-            <div className="text-xl font-bold text-slate-200">{tradeStats.totalTrades}</div>
-          </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
-            <div className="text-xs text-slate-400 uppercase tracking-wider">Wins</div>
-            <div className="text-xl font-bold text-emerald-400">{tradeStats.wins}</div>
-          </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
-            <div className="text-xs text-slate-400 uppercase tracking-wider">Losses</div>
-            <div className="text-xl font-bold text-red-400">{tradeStats.losses}</div>
-          </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
-            <div className="text-xs text-slate-400 uppercase tracking-wider">Win Rate</div>
-            <div className={`text-xl font-bold ${tradeStats.winRate >= 50 ? 'text-emerald-400' : 'text-red-400'}`}>
-              {tradeStats.winRate.toFixed(0)}%
-            </div>
-          </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
-            <div className="text-xs text-slate-400 uppercase tracking-wider">Avg Return</div>
-            <div className={`text-xl font-bold ${getReturnColor(tradeStats.avgReturn)}`}>
-              {tradeStats.avgReturn > 0 ? '+' : ''}{tradeStats.avgReturn.toFixed(1)}%
-            </div>
-          </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
-            <div className="text-xs text-slate-400 uppercase tracking-wider">Avg Win</div>
-            <div className="text-xl font-bold text-emerald-400">+{tradeStats.avgWin.toFixed(1)}%</div>
-          </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
-            <div className="text-xs text-slate-400 uppercase tracking-wider">Avg Loss</div>
-            <div className="text-xl font-bold text-red-400">{tradeStats.avgLoss.toFixed(1)}%</div>
-          </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+          <StatCard
+            label="총 거래"
+            value={tradeStats.totalTrades}
+            color="text-slate-200"
+            icon={<BarChart3 className="w-3.5 h-3.5" />}
+          />
+          <StatCard
+            label="수익"
+            value={tradeStats.wins}
+            color="text-emerald-400"
+            icon={<TrendingUp className="w-3.5 h-3.5" />}
+          />
+          <StatCard
+            label="손실"
+            value={tradeStats.losses}
+            color="text-red-400"
+            icon={<TrendingDown className="w-3.5 h-3.5" />}
+          />
+          <StatCard
+            label="승률"
+            value={`${tradeStats.winRate.toFixed(0)}%`}
+            color={tradeStats.winRate >= 50 ? 'text-emerald-400' : 'text-red-400'}
+            icon={<Trophy className="w-3.5 h-3.5" />}
+          />
+          <StatCard
+            label="평균 수익률"
+            value={`${tradeStats.avgReturn > 0 ? '+' : ''}${tradeStats.avgReturn.toFixed(1)}%`}
+            color={getReturnColor(tradeStats.avgReturn)}
+            icon={<Target className="w-3.5 h-3.5" />}
+          />
+          <StatCard
+            label="평균 수익"
+            value={`+${tradeStats.avgWin.toFixed(1)}%`}
+            color="text-emerald-400"
+            icon={<TrendingUp className="w-3.5 h-3.5" />}
+          />
+          <StatCard
+            label="평균 손실"
+            value={`${tradeStats.avgLoss.toFixed(1)}%`}
+            color="text-red-400"
+            icon={<TrendingDown className="w-3.5 h-3.5" />}
+          />
         </div>
       )}
 
       {/* Cumulative Returns Chart */}
       {cumulativeData.length > 0 && (
-        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-slate-300 mb-3">Cumulative Portfolio Return (%)</h3>
+        <div className="bg-surface-default border border-border-default rounded-xl p-4">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-1 h-4 bg-emerald-500 rounded-full" />
+            <h3 className="text-sm font-semibold text-slate-200">누적 수익률</h3>
+            <span className="text-xs text-slate-500">Cumulative Portfolio Return</span>
+          </div>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={cumulativeData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+            <AreaChart data={cumulativeData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+              <defs>
+                <linearGradient id="cumulativeGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#34D399" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#34D399" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" />
               <XAxis
                 dataKey="date"
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
-                tickLine={{ stroke: '#475569' }}
+                tick={{ fill: '#64748B', fontSize: 11 }}
+                tickLine={{ stroke: '#334155' }}
                 interval="preserveStartEnd"
               />
               <YAxis
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
-                tickLine={{ stroke: '#475569' }}
+                tick={{ fill: '#64748B', fontSize: 11 }}
+                tickLine={{ stroke: '#334155' }}
                 tickFormatter={(v: number) => `${v}%`}
               />
               <Tooltip
-                contentStyle={{
-                  backgroundColor: '#1e293b',
-                  border: '1px solid #334155',
-                  borderRadius: '8px',
-                  color: '#e2e8f0',
-                  fontSize: '12px',
-                }}
-                formatter={(value: number) => [`${value.toFixed(2)}%`, 'Cumulative']}
+                contentStyle={tooltipStyle}
+                formatter={(value: number) => [`${value.toFixed(2)}%`, '누적 수익률']}
               />
-              <Legend wrapperStyle={{ fontSize: '12px', color: '#94a3b8' }} />
-              <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="3 3" />
-              <Line
+              <ReferenceLine y={0} stroke="#EF4444" strokeDasharray="3 3" strokeWidth={1} />
+              <Area
                 type="monotone"
                 dataKey="cumulative"
-                stroke="#34d399"
+                stroke="#34D399"
                 strokeWidth={2}
-                dot={{ fill: '#34d399', r: 3 }}
+                fill="url(#cumulativeGradient)"
+                dot={{ fill: '#34D399', r: 2, strokeWidth: 0 }}
                 name="Cumulative Return"
               />
-            </LineChart>
+            </AreaChart>
           </ResponsiveContainer>
         </div>
       )}
 
       {/* Trade History Table */}
-      <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
-        <div className="p-4 border-b border-slate-700 flex items-center justify-between flex-wrap gap-3">
-          <h2 className="text-lg font-semibold text-slate-200">Trade History</h2>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-400">Filter:</span>
+      <div className="bg-surface-default border border-border-default rounded-xl overflow-hidden">
+        <div className="p-4 border-b border-border-default flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-1 h-5 bg-blue-500 rounded-full" />
+            <h2 className="text-sm font-semibold text-slate-100">거래 내역</h2>
+            <span className="text-xs text-slate-500">Trade History</span>
+          </div>
+          <div className="flex items-center gap-1.5">
             {['all', 'enter', 'hold', 'exit'].map(action => (
               <button
                 key={action}
                 onClick={() => setFilterAction(action)}
-                className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   filterAction === action
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                    ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-600/30'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800 border border-transparent'
                 }`}
               >
-                {action.charAt(0).toUpperCase() + action.slice(1)}
+                {action === 'all' ? '전체' : action === 'enter' ? '진입' : action === 'hold' ? '유지' : '퇴출'}
               </button>
             ))}
           </div>
@@ -319,22 +381,22 @@ function Portfolio() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase tracking-wider">
-                <th className="px-4 py-3 text-left">Date</th>
-                <th className="px-4 py-3 text-left">Ticker</th>
-                <th className="px-4 py-3 text-left">Action</th>
-                <th className="px-4 py-3 text-right">Price</th>
-                <th className="px-4 py-3 text-right">Weight</th>
-                <th className="px-4 py-3 text-right">Entry Date</th>
-                <th className="px-4 py-3 text-right">Entry Price</th>
-                <th className="px-4 py-3 text-right">Exit Price</th>
-                <th className="px-4 py-3 text-right">Return</th>
+              <tr className="border-b border-border-default text-slate-500 text-xs uppercase tracking-wider">
+                <th className="px-4 py-3 text-left">날짜</th>
+                <th className="px-4 py-3 text-left">종목</th>
+                <th className="px-4 py-3 text-left">액션</th>
+                <th className="px-4 py-3 text-right">가격</th>
+                <th className="px-4 py-3 text-right">비중</th>
+                <th className="px-4 py-3 text-right">진입일</th>
+                <th className="px-4 py-3 text-right">진입가</th>
+                <th className="px-4 py-3 text-right">퇴출가</th>
+                <th className="px-4 py-3 text-right">수익률</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-700/50">
+            <tbody className="divide-y divide-border-subtle">
               {filteredHistory.slice(0, 100).map((entry, idx) => (
-                <tr key={`${entry.date}-${entry.ticker}-${idx}`} className="hover:bg-slate-700/50 transition-colors">
-                  <td className="px-4 py-2 font-mono text-xs text-slate-400">{entry.date}</td>
+                <tr key={`${entry.date}-${entry.ticker}-${idx}`} className="hover:bg-surface-hover transition-colors">
+                  <td className="px-4 py-2 font-mono text-xs text-slate-500 tabular-nums">{entry.date}</td>
                   <td className="px-4 py-2">
                     <Link
                       to={`/ticker/${entry.ticker}`}
@@ -344,16 +406,16 @@ function Portfolio() {
                     </Link>
                   </td>
                   <td className="px-4 py-2">{getActionBadge(entry.action)}</td>
-                  <td className="px-4 py-2 text-right font-mono text-slate-300">${entry.price.toFixed(2)}</td>
-                  <td className="px-4 py-2 text-right font-mono text-slate-400">
+                  <td className="px-4 py-2 text-right font-mono text-slate-300 tabular-nums">${entry.price.toFixed(2)}</td>
+                  <td className="px-4 py-2 text-right font-mono text-slate-500 tabular-nums">
                     {(entry.weight * 100).toFixed(0)}%
                   </td>
-                  <td className="px-4 py-2 text-right font-mono text-xs text-slate-500">{entry.entry_date}</td>
-                  <td className="px-4 py-2 text-right font-mono text-slate-400">${entry.entry_price.toFixed(2)}</td>
-                  <td className="px-4 py-2 text-right font-mono text-slate-400">
+                  <td className="px-4 py-2 text-right font-mono text-xs text-slate-600 tabular-nums">{entry.entry_date}</td>
+                  <td className="px-4 py-2 text-right font-mono text-slate-500 tabular-nums">${entry.entry_price.toFixed(2)}</td>
+                  <td className="px-4 py-2 text-right font-mono text-slate-500 tabular-nums">
                     {entry.exit_price !== null ? `$${entry.exit_price.toFixed(2)}` : '-'}
                   </td>
-                  <td className={`px-4 py-2 text-right font-mono font-semibold ${getReturnColor(entry.return_pct)}`}>
+                  <td className={`px-4 py-2 text-right font-mono font-semibold tabular-nums ${getReturnColor(entry.return_pct)}`}>
                     {entry.return_pct !== null
                       ? `${entry.return_pct > 0 ? '+' : ''}${entry.return_pct.toFixed(1)}%`
                       : '-'}
@@ -364,8 +426,8 @@ function Portfolio() {
           </table>
         </div>
         {filteredHistory.length > 100 && (
-          <div className="p-3 text-center text-xs text-slate-400 border-t border-slate-700">
-            Showing 100 of {filteredHistory.length} entries
+          <div className="p-3 text-center text-xs text-slate-500 border-t border-border-default">
+            100개 / 전체 {filteredHistory.length}개 표시 중
           </div>
         )}
       </div>

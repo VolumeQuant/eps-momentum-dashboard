@@ -1,5 +1,42 @@
+export interface MarketIndex {
+  name: string;
+  symbol: string;
+  close: number;
+  change_pct: number;
+}
+
+export interface MarketStatus {
+  indices: MarketIndex[];
+  hy: {
+    hy_spread: number;
+    quadrant: string;
+    quadrant_label: string;
+    season_icon: string;
+    q_days: number;
+    action: string;
+    direction: string;
+  } | null;
+  vix: {
+    vix_current: number;
+    vix_percentile: number;
+    vix_slope: number;
+    vix_slope_dir: string;
+    regime: string;
+    regime_label: string;
+    direction: string;
+  } | null;
+  concordance: string;
+  signal_dots: { hy_ok: boolean; vix_ok: boolean };
+  final_action: string;
+  cached_at: string;
+}
+
 export interface Candidate {
   ticker: string;
+  short_name?: string;
+  industry?: string;
+  industry_en?: string;
+  industry_kr?: string;
   part2_rank: number;
   composite_rank: number;
   score: number;
@@ -8,10 +45,13 @@ export interface Candidate {
   price: number;
   ma60: number;
   ntm_current: number;
+  eps_change_90d?: number;
+  fwd_pe?: number;
   rev_growth: number | null;
   rev_up30: number;
   rev_down30: number;
   num_analysts: number;
+  risk_flags?: string[];
   market_cap: number | null;
   roe: number | null;
   debt_to_equity: number | null;
@@ -22,10 +62,9 @@ export interface Candidate {
   seg2: number;
   seg3: number;
   seg4: number;
-  trend_icons: string;
-  status: '\u2705' | '\u23F3' | '\uD83C\uDD95';
+  trend: string;
+  status_3d: string;
   rank_history: string;
-  industry?: string;
 }
 
 export interface PortfolioEntry {
@@ -48,9 +87,20 @@ export interface TickerHistory {
   price: number;
   ma60: number;
   ntm_current: number;
+  ntm_7d?: number;
+  ntm_30d?: number;
+  ntm_60d?: number;
+  ntm_90d: number;
   part2_rank: number | null;
   composite_rank: number | null;
   rev_growth: number | null;
+  rev_up30?: number | null;
+  rev_down30?: number | null;
+  num_analysts?: number | null;
+  seg1?: number;
+  seg2?: number;
+  seg3?: number;
+  seg4?: number;
 }
 
 export interface ScreeningStats {
@@ -64,5 +114,10 @@ export interface ScreeningStats {
 
 export interface ExitedStock {
   ticker: string;
-  yesterday_rank: number;
+  short_name?: string;
+  industry_kr?: string;
+  prev_date?: string;
+  prev_rank: number;
+  current_rank?: number | null;
+  rank_history?: string;
 }

@@ -1,13 +1,106 @@
 @import "tailwindcss";
 
+@theme {
+  --color-surface-deep: #0B1120;
+  --color-surface-default: #111827;
+  --color-surface-elevated: #1E293B;
+  --color-surface-hover: #283548;
+  --color-surface-active: #334155;
+
+  --color-border-subtle: #1E293B;
+  --color-border-default: #2D3B4E;
+  --color-border-strong: #475569;
+
+  --color-season-spring: #F9A8D4;
+  --color-season-summer: #FCD34D;
+  --color-season-autumn: #FB923C;
+  --color-season-winter: #93C5FD;
+
+  --color-signal-green: #34D399;
+  --color-signal-red: #F87171;
+  --color-signal-amber: #FBBF24;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: #0f172a;
-  color: #e2e8f0;
-  font-family: Inter, system-ui, -apple-system, sans-serif;
+  background-color: var(--color-surface-deep);
+  color: #F1F5F9;
+  font-family: 'Pretendard Variable', 'Pretendard', 'Inter', system-ui, -apple-system, sans-serif;
 }
 
 #root {
   min-height: 100vh;
+}
+
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0B1120;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Animations */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes flash-green {
+  0% { background-color: rgba(52, 211, 153, 0.3); }
+  100% { background-color: transparent; }
+}
+
+@keyframes flash-red {
+  0% { background-color: rgba(248, 113, 113, 0.3); }
+  100% { background-color: transparent; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out forwards;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.flash-positive {
+  animation: flash-green 0.5s ease-out;
+}
+
+.flash-negative {
+  animation: flash-red 0.5s ease-out;
+}
+
+/* Tabular numbers for financial data */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }

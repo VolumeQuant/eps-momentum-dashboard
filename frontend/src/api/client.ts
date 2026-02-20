@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Candidate, PortfolioEntry, TickerHistory, ScreeningStats, ExitedStock } from '../types';
+import type { Candidate, PortfolioEntry, TickerHistory, ScreeningStats, ExitedStock, MarketStatus } from '../types';
 
 const api = axios.create({ baseURL: '/api' });
 
@@ -16,10 +16,16 @@ export const fetchPortfolioHistory = () =>
   api.get<PortfolioEntry[]>('/portfolio/history').then(r => r.data);
 
 export const fetchTickerHistory = (ticker: string) =>
-  api.get<TickerHistory[]>(`/ticker/${ticker}`).then(r => r.data);
+  api.get<{ ticker: string; short_name: string; industry_en: string; industry_kr: string; history: TickerHistory[] }>(`/ticker/${ticker}`)
+    .then(r => r.data);
 
 export const fetchStats = (date: string) =>
   api.get<ScreeningStats>(`/stats/${date}`).then(r => r.data);
 
 export const fetchExited = (date: string) =>
   api.get<ExitedStock[]>(`/exited/${date}`).then(r => r.data);
+
+export const fetchMarketLive = () =>
+  api.get<MarketStatus>('/market/live').then(r => r.data);
+
+
