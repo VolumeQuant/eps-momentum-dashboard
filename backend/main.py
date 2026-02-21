@@ -337,24 +337,97 @@ def _build_ticker_dates_map(conn, dates: list[str]) -> dict:
     return result
 
 
-def _build_rank_history(ticker: str, dates: list[str], conn) -> str:
-    """Return e.g. '3->4->1' for last 3 dates (oldest->newest)."""
+def _build_rank_history(ticker: str, dates: list[str], conn, status_3d: str = "") -> str:
+    """Return e.g. '3→4→1' for last 3 dates (oldest→newest).
+    Aligns with status marker: 🆕→'-→-→r0', ⏳→'-→r1→r0', ✅→full history."""
     if not dates:
         return ""
     # dates are newest-first; reverse to oldest-first for display
     ordered = list(reversed(dates))
     placeholders = ",".join("?" for _ in ordered)
     cur = conn.execute(
-        f"SELECT date, part2_rank FROM ntm_screening "
-        f"WHERE ticker = ? AND part2_rank IS NOT NULL AND date IN ({placeholders})",
+        f"SELECT date, composite_rank FROM ntm_screening "
+        f"WHERE ticker = ? AND date IN ({placeholders})",
         [ticker] + ordered,
     )
-    rank_by_date = {r["date"]: r["part2_rank"] for r in cur.fetchall()}
-    parts = []
-    for d in ordered:
-        r = rank_by_date.get(d)
-        parts.append(str(r) if r is not None else "-")
-    return "\u2192".join(parts)  # arrow
+    rank_by_date = {r["date"]: r["composite_rank"] for r in cur.fetchall()}
+
+    if status_3d == "\U0001f195":  # 🆕
+        r0 = rank_by_date.get(ordered[-1]) if ordered else None
+        return f"-\u2192-\u2192{r0 if r0 else '-'}"
+    elif status_3d == "\u23f3":  # ⏳
+        r1 = rank_by_date.get(ordered[-2]) if len(ordered) >= 2 else None
+        r0 = rank_by_date.get(ordered[-1]) if ordered else None
+        r1_str = str(r1) if r1 and r1 < 50 else "-"
+        return f"-\u2192{r1_str}\u2192{r0 if r0 else '-'}"
+    else:  # ✅ or default
+        parts = []
+        for d in ordered:
+            r = rank_by_date.get(d)
+            parts.append(str(r) if r is not None and r < 50 else "-")
+        return "\u2192".join(parts)
+
+
+def _compute_rank_change_tags(ticker: str, dates: list[str], conn) -> str:
+    """Compute rank change tags based on price and adj_score σ thresholds.
+    Returns tag string like '📈가격↑' or '📉가격↓ ⚠️전망↓'."""
+    PRICE_STD = 2.83  # daily stock return σ %
+    SCORE_STD = 1.48  # adj_score daily change σ
+    RANK_THRESHOLD = 3
+
+    if len(dates) < 2:
+        return ""
+
+    # dates are newest-first
+    ordered = list(reversed(dates))  # oldest-first
+    placeholders = ",".join("?" for _ in ordered)
+    cur = conn.execute(
+        f"SELECT date, composite_rank, adj_score, price FROM ntm_screening "
+        f"WHERE ticker = ? AND date IN ({placeholders})",
+        [ticker] + ordered,
+    )
+    data_by_date = {r["date"]: dict(r) for r in cur.fetchall()}
+
+    t0_date = ordered[-1]
+    t0 = data_by_date.get(t0_date)
+    if not t0 or not t0.get("composite_rank"):
+        return ""
+
+    # Find reference date (T-2 if available, else T-1)
+    ref = None
+    for d in reversed(ordered[:-1]):
+        ref_data = data_by_date.get(d)
+        if ref_data and ref_data.get("composite_rank") and ref_data["composite_rank"] < 50:
+            ref = ref_data
+            break
+
+    if not ref:
+        return ""
+
+    rank_chg = (t0.get("composite_rank") or 50) - (ref.get("composite_rank") or 50)
+    if abs(rank_chg) < RANK_THRESHOLD:
+        return ""
+
+    # Price change %
+    p0 = t0.get("price") or 0
+    p_ref = ref.get("price") or 0
+    price_chg_pct = ((p0 - p_ref) / p_ref * 100) if p_ref > 0 else 0
+
+    # Score change
+    score_delta = (t0.get("adj_score") or 0) - (ref.get("adj_score") or 0)
+
+    # Tags: show all σ-exceeded changes regardless of direction
+    tag_parts = []
+    if price_chg_pct >= PRICE_STD:
+        tag_parts.append("\U0001f4c8가격\u2191")  # 📈가격↑
+    elif price_chg_pct <= -PRICE_STD:
+        tag_parts.append("\U0001f4c9가격\u2193")  # 📉가격↓
+    if score_delta >= SCORE_STD:
+        tag_parts.append("\U0001f4aa전망\u2191")  # 💪전망↑
+    elif score_delta <= -SCORE_STD:
+        tag_parts.append("\u26a0\ufe0f전망\u2193")  # ⚠️전망↓
+
+    return " ".join(tag_parts)
 
 
 def _compute_risk_flags(row: dict) -> list[dict]:
@@ -734,10 +807,29 @@ def _compute_concordance_and_action(hy: Optional[dict], vix: Optional[dict]) -> 
         else:
             final_action = "평소대로 투자하세요."
 
+    # portfolio_mode: market-based portfolio display control (v37)
+    if hy:
+        q = hy["quadrant"]
+        q_days = hy.get("q_days", 1)
+        if q == "Q1":
+            portfolio_mode = "normal"
+        elif q == "Q2":
+            portfolio_mode = "normal" if vix_dir == "stable" else "caution"
+        elif q == "Q3":
+            portfolio_mode = "stop" if vix_dir == "warn" else "caution"
+        else:  # Q4
+            if q_days <= 60:
+                portfolio_mode = "stop"
+            else:
+                portfolio_mode = "reduced" if vix_dir == "stable" else "stop"
+    else:
+        portfolio_mode = "caution" if vix and vix_dir == "warn" else "normal"
+
     return {
         "concordance": concordance,
         "signal_dots": {"hy_ok": hy_ok, "vix_ok": vix_ok},
         "final_action": final_action,
+        "portfolio_mode": portfolio_mode,
     }
 
 
@@ -755,6 +847,7 @@ def _get_market_live_data() -> dict:
         "concordance": conc["concordance"],
         "signal_dots": conc["signal_dots"],
         "final_action": conc["final_action"],
+        "portfolio_mode": conc["portfolio_mode"],
         "cached_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
@@ -868,8 +961,8 @@ def get_screening(date: str):
             # 3-day verification status
             row["status_3d"] = _compute_3day_status(row["ticker"], last3, td_map)
 
-            # Rank history
-            row["rank_history"] = _build_rank_history(row["ticker"], last3, conn)
+            # Rank history (aligned with status marker)
+            row["rank_history"] = _build_rank_history(row["ticker"], last3, conn, row["status_3d"])
 
             # --- NEW: Ticker info from cache ---
             info = _get_ticker_info(row["ticker"])
@@ -892,6 +985,14 @@ def get_screening(date: str):
 
             # --- NEW: Risk flags ---
             row["risk_flags"] = _compute_risk_flags(row)
+
+            # --- Rank change tags (v36.6) ---
+            row["rank_change_tag"] = _compute_rank_change_tags(row["ticker"], last3, conn)
+
+            # Convert rev_growth from ratio (0.612) to percent (61.2)
+            rg = row.get("rev_growth")
+            if rg is not None:
+                row["rev_growth"] = round(rg * 100, 1)
 
         return rows
 
@@ -1073,6 +1174,10 @@ def get_ticker_history(ticker: str):
         row["seg2"] = round(s2, 2)
         row["seg3"] = round(s3, 2)
         row["seg4"] = round(s4, 2)
+        # Convert rev_growth from ratio to percent
+        rg = row.get("rev_growth")
+        if rg is not None:
+            row["rev_growth"] = round(rg * 100, 1)
 
     return {
         "ticker": ticker_upper,
@@ -1207,12 +1312,51 @@ def get_exited(date: str):
         # Rank history context
         last3 = _get_last_n_part2_dates(conn, 3)
 
-        # Exited
+        # Exited — enriched with trend, EPS, revenue data
         exited = []
         for ticker, rank in sorted(yesterday.items(), key=lambda x: x[1]):
             if ticker not in today_set:
                 info = _get_ticker_info(ticker)
                 rank_hist = _build_rank_history(ticker, last3, conn)
+                rank_tag = _compute_rank_change_tags(ticker, last3, conn)
+
+                # Fetch today's screening data for detailed info
+                cur = conn.execute(
+                    "SELECT adj_score, adj_gap, price, ntm_current, ntm_7d, ntm_30d, ntm_60d, ntm_90d, "
+                    "rev_up30, rev_down30, rev_growth "
+                    "FROM ntm_screening WHERE date = ? AND ticker = ?",
+                    (date, ticker),
+                )
+                detail = dict(cur.fetchone()) if cur.fetchone() is not None else {}
+                # Re-fetch since fetchone consumed it
+                cur = conn.execute(
+                    "SELECT adj_score, adj_gap, price, ntm_current, ntm_7d, ntm_30d, ntm_60d, ntm_90d, "
+                    "rev_up30, rev_down30, rev_growth "
+                    "FROM ntm_screening WHERE date = ? AND ticker = ?",
+                    (date, ticker),
+                )
+                row = cur.fetchone()
+                detail = dict(row) if row else {}
+
+                # Compute trend for exited stock
+                ntm_c = detail.get("ntm_current") or 0
+                ntm_7 = detail.get("ntm_7d") or 0
+                ntm_30 = detail.get("ntm_30d") or 0
+                ntm_60 = detail.get("ntm_60d") or 0
+                ntm_90 = detail.get("ntm_90d") or 0
+                s1, s2, s3, s4 = calc_segments(ntm_c, ntm_7, ntm_30, ntm_60, ntm_90)
+                trend = trend_icon(s4) + trend_icon(s3) + trend_icon(s2) + trend_icon(s1)
+
+                # EPS change 90d
+                eps_chg_90d = round(((ntm_c - ntm_90) / abs(ntm_90)) * 100, 2) if ntm_90 != 0 else None
+
+                # Exit reason
+                adj_gap = detail.get("adj_gap") or 0
+                exit_reason = "괴리+" if adj_gap > 0 else "펀더멘탈"
+
+                rg = detail.get("rev_growth")
+                rev_growth_pct = round(rg * 100, 1) if rg is not None else None
+
                 exited.append({
                     "ticker": ticker,
                     "short_name": info["short_name"],
@@ -1221,9 +1365,78 @@ def get_exited(date: str):
                     "prev_rank": rank,
                     "current_rank": current_ranks.get(ticker),
                     "rank_history": rank_hist,
+                    "rank_change_tag": rank_tag,
+                    "trend": trend,
+                    "eps_change_90d": eps_chg_90d,
+                    "rev_growth": rev_growth_pct,
+                    "adj_gap": round(adj_gap, 1),
+                    "rev_up30": detail.get("rev_up30") or 0,
+                    "rev_down30": detail.get("rev_down30") or 0,
+                    "exit_reason": exit_reason,
                 })
 
         return exited
+
+
+# ---------------------------------------------------------------------------
+# AI Review endpoint
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/ai-review/{date}")
+def get_ai_review(date: str):
+    """AI risk review for a date: computed risk flags + stored AI analysis text."""
+    with get_db() as conn:
+        # 1) Computed risk flags from screening data (always available)
+        cur = conn.execute(
+            "SELECT ticker, part2_rank, adj_score, adj_gap, price, ntm_current, "
+            "rev_up30, rev_down30, num_analysts "
+            "FROM ntm_screening WHERE date = ? AND part2_rank IS NOT NULL "
+            "ORDER BY part2_rank ASC",
+            (date,),
+        )
+        rows = rows_to_dicts(cur.fetchall())
+
+        risk_stocks = []
+        for row in rows:
+            flags = _compute_risk_flags(row)
+            if flags:
+                info = _get_ticker_info(row["ticker"])
+                risk_stocks.append({
+                    "ticker": row["ticker"],
+                    "short_name": info["short_name"],
+                    "industry_kr": info["industry_kr"],
+                    "part2_rank": row["part2_rank"],
+                    "flags": flags,
+                })
+
+        # 2) Stored AI analysis text (if available)
+        ai_text = None
+        portfolio_text = None
+
+        # Check if ai_analysis table exists
+        table_check = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='ai_analysis'"
+        ).fetchone()
+
+        if table_check:
+            cur = conn.execute(
+                "SELECT analysis_type, content FROM ai_analysis "
+                "WHERE date = ? AND ticker = '__ALL__'",
+                (date,),
+            )
+            for r in cur.fetchall():
+                if r["analysis_type"] == "ai_review":
+                    ai_text = r["content"]
+                elif r["analysis_type"] == "portfolio_narrative":
+                    portfolio_text = r["content"]
+
+    return {
+        "date": date,
+        "risk_stocks": risk_stocks,
+        "ai_review_text": ai_text,
+        "portfolio_narrative": portfolio_text,
+    }
 
 
 # ---------------------------------------------------------------------------

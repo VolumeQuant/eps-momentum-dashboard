@@ -109,15 +109,40 @@ function DeathList({ exited, isLoading }: DeathListProps) {
                   )}
                 </div>
               </div>
-              {/* Rank trajectory visualization */}
-              {stock.rank_history && (
-                <div className="mt-1.5 ml-6">
+              {/* Detail info + Rank trajectory */}
+              <div className="mt-1.5 ml-6 space-y-1">
+                {/* Trend + EPS + Revenue */}
+                <div className="flex items-center gap-3 text-[10px]">
+                  {stock.trend && <span>{stock.trend}</span>}
+                  {stock.eps_change_90d != null && (
+                    <span className={stock.eps_change_90d > 0 ? 'text-emerald-400' : 'text-red-400'}>
+                      EPS {stock.eps_change_90d > 0 ? '+' : ''}{stock.eps_change_90d}%
+                    </span>
+                  )}
+                  {stock.rev_growth != null && (
+                    <span className={stock.rev_growth > 0 ? 'text-emerald-400' : 'text-red-400'}>
+                      매출 {stock.rev_growth > 0 ? '+' : ''}{stock.rev_growth}%
+                    </span>
+                  )}
+                  {stock.exit_reason && (
+                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-medium ${
+                      stock.exit_reason === '괴리+' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
+                    }`}>
+                      {stock.exit_reason === '괴리+' ? '✅ 목표달성' : '⚠️ 펀더멘탈'}
+                    </span>
+                  )}
+                </div>
+                {/* Rank history + tag */}
+                {stock.rank_history && (
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] text-slate-600 font-mono tabular-nums">{stock.rank_history}</span>
+                    {stock.rank_change_tag && (
+                      <span className="text-[10px]">({stock.rank_change_tag})</span>
+                    )}
                     <RankTrajectory rankHistory={stock.rank_history} />
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           ))}
         </div>

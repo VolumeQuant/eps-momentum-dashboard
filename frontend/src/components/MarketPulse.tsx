@@ -129,10 +129,23 @@ function MarketPulse({ market, isLoading }: MarketPulseProps) {
           />
         </div>
 
-        {/* Final action */}
-        <p className={`text-base font-medium mb-5 ${actionStyle}`}>
-          {market.final_action || '시장 데이터를 분석 중입니다.'}
-        </p>
+        {/* Final action + portfolio mode */}
+        <div className="flex items-center gap-3 mb-5">
+          <p className={`text-base font-medium ${actionStyle}`}>
+            {market.final_action || '시장 데이터를 분석 중입니다.'}
+          </p>
+          {market.portfolio_mode && market.portfolio_mode !== 'normal' && (
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+              market.portfolio_mode === 'stop'
+                ? 'bg-red-600/20 text-red-400 border-red-600/30'
+                : market.portfolio_mode === 'reduced'
+                  ? 'bg-amber-600/20 text-amber-400 border-amber-600/30'
+                  : 'bg-amber-600/15 text-amber-300 border-amber-600/20'
+            }`}>
+              {market.portfolio_mode === 'stop' ? '매수중단' : market.portfolio_mode === 'reduced' ? 'Top 3' : '주의'}
+            </span>
+          )}
+        </div>
 
         {/* Sub-cards grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

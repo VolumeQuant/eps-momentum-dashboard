@@ -28,6 +28,7 @@ export interface MarketStatus {
   concordance: string;
   signal_dots: { hy_ok: boolean; vix_ok: boolean };
   final_action: string;
+  portfolio_mode: 'normal' | 'caution' | 'reduced' | 'stop';
   cached_at: string;
 }
 
@@ -65,11 +66,14 @@ export interface Candidate {
   trend: string;
   status_3d: string;
   rank_history: string;
+  rank_change_tag?: string;
 }
 
 export interface PortfolioEntry {
   date: string;
   ticker: string;
+  short_name?: string;
+  industry_kr?: string;
   action: 'enter' | 'hold' | 'exit';
   price: number;
   weight: number;
@@ -112,6 +116,27 @@ export interface ScreeningStats {
   industry_distribution: Record<string, number>;
 }
 
+export interface RiskFlag {
+  type: string;
+  label: string;
+  detail: string;
+}
+
+export interface RiskStock {
+  ticker: string;
+  short_name: string;
+  industry_kr: string;
+  part2_rank: number;
+  flags: RiskFlag[];
+}
+
+export interface AIReview {
+  date: string;
+  risk_stocks: RiskStock[];
+  ai_review_text: string | null;
+  portfolio_narrative: string | null;
+}
+
 export interface ExitedStock {
   ticker: string;
   short_name?: string;
@@ -120,4 +145,12 @@ export interface ExitedStock {
   prev_rank: number;
   current_rank?: number | null;
   rank_history?: string;
+  rank_change_tag?: string;
+  trend?: string;
+  eps_change_90d?: number | null;
+  rev_growth?: number | null;
+  adj_gap?: number;
+  rev_up30?: number;
+  rev_down30?: number;
+  exit_reason?: string;
 }

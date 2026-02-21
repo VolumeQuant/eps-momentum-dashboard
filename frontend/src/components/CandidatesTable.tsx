@@ -10,7 +10,7 @@ interface CandidatesTableProps {
   isLoading: boolean;
 }
 
-type SortKey = 'part2_rank' | 'adj_score' | 'adj_gap' | 'rev_growth' | 'price' | 'fwd_pe';
+type SortKey = 'part2_rank' | 'composite_rank' | 'adj_score' | 'adj_gap' | 'rev_growth' | 'price' | 'fwd_pe';
 type SortDir = 'asc' | 'desc';
 
 function formatNumber(val: number | null | undefined, decimals: number = 1): string {
@@ -168,6 +168,10 @@ function CandidatesTable({ candidates, isLoading }: CandidatesTableProps) {
           aVal = a.part2_rank
           bVal = b.part2_rank
           break
+        case 'composite_rank':
+          aVal = a.composite_rank ?? 9999
+          bVal = b.composite_rank ?? 9999
+          break
         case 'adj_score':
           aVal = a.adj_score
           bVal = b.adj_score
@@ -256,6 +260,7 @@ function CandidatesTable({ candidates, isLoading }: CandidatesTableProps) {
               <SortHeader label="Adj Score" sortKey="adj_score" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
               <SortHeader label="Adj Gap" sortKey="adj_gap" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
               <SortHeader label="매출성장" sortKey="rev_growth" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
+              <SortHeader label="Composite" sortKey="composite_rank" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
               <th className="px-3 py-3 text-center">추세</th>
               <th className="px-3 py-3 text-left">순위이력</th>
             </tr>
@@ -295,7 +300,7 @@ function GroupedRows({ group }: { group: { label: string; sublabel: string; item
     <>
       {/* Group header row */}
       <tr className="bg-slate-800/30">
-        <td colSpan={10} className="px-4 py-2.5">
+        <td colSpan={11} className="px-4 py-2.5">
           <div className="flex items-center gap-2">
             <StatusBadge status={group.statusEmoji} size="md" />
             <span className="text-xs text-slate-400">{group.sublabel}</span>
@@ -401,6 +406,12 @@ function CandidateRow({ candidate: c }: { candidate: Candidate }) {
         {c.rev_growth !== null ? formatPercent(c.rev_growth) : '-'}
       </td>
 
+      {/* Composite Rank */}
+      <td className="px-3 py-2.5 text-right font-mono tabular-nums text-sm text-slate-400"
+          title={`Composite 순위: adj_gap(70%) + 매출성장(30%) 기준`}>
+        {c.composite_rank != null ? `#${c.composite_rank}` : '-'}
+      </td>
+
       {/* Trend */}
       <td className="px-3 py-2.5 text-center">
         <div className="flex justify-center">
@@ -408,9 +419,14 @@ function CandidateRow({ candidate: c }: { candidate: Candidate }) {
         </div>
       </td>
 
-      {/* Rank History */}
+      {/* Rank History + Tag */}
       <td className="px-3 py-2.5 text-xs text-slate-400 font-mono tabular-nums">
-        {c.rank_history || '-'}
+        <span>{c.rank_history || '-'}</span>
+        {c.rank_change_tag && (
+          <span className="ml-1.5 text-[10px]" title="순위 변동 원인">
+            ({c.rank_change_tag})
+          </span>
+        )}
       </td>
     </tr>
   )
@@ -450,11 +466,19 @@ function MobileCandidateCard({ candidate: c }: { candidate: Candidate }) {
           <span className={`font-mono font-semibold tabular-nums ${getGapColor(c.adj_gap)}`}>
             G:{formatPercent(c.adj_gap)}
           </span>
+          {c.composite_rank != null && (
+            <span className="font-mono tabular-nums text-slate-500">
+              C:#{c.composite_rank}
+            </span>
+          )}
         </div>
         <TrendIcon seg1={c.seg1} seg2={c.seg2} seg3={c.seg3} seg4={c.seg4} />
       </div>
       <div className="flex items-center gap-2 mt-1">
         <span className="text-[10px] text-slate-500 font-mono">{c.rank_history || '-'}</span>
+        {c.rank_change_tag && (
+          <span className="text-[10px]">({c.rank_change_tag})</span>
+        )}
       </div>
     </Link>
   )
